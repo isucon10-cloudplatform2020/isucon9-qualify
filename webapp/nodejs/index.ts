@@ -2311,24 +2311,19 @@ async function getUserSimpleByID(
   return null;
 }
 
-async function getCategoryByID(
-  db: MySQLQueryable,
-  categoryId: number
-): Promise<Category | null> {
-  const [rows] = await db.query("SELECT * FROM `categories` WHERE `id` = ?", [
-    categoryId,
-  ]);
-  for (const row of rows) {
-    const category = row as Category;
-    if (category.parent_id !== undefined && category.parent_id != 0) {
-      const parentCategory = await getCategoryByID(db, category.parent_id);
-      if (parentCategory !== null) {
-        category.parent_category_name = parentCategory.category_name;
-      }
-    }
+async function getCategoryByID(categoryId: number): Promise<Category | null> {
+  const category = await findCategoryById(categoryId);
+  if (category === null) return null;
+
+  if (category.parent_id === undefined || category.parent_id === 0) {
     return category;
   }
-  return null;
+
+  const parentCategory = await getCategoryByID(category.parent_id);
+  if (parentCategory !== null) {
+    category.parent_category_name = parentCategory.category_name;
+  }
+  return category;
 }
 
 async function encryptPassword(password: string): Promise<string> {
