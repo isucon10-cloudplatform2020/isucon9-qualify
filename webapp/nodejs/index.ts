@@ -288,6 +288,49 @@ fastify.get("/transactions/:transaction_id", getIndex);
 fastify.get("/users/:user_id", getIndex);
 fastify.get("/users/setting", getIndex);
 
+// Categoryのcache
+const categories: Category[] = [];
+
+// CategoryをDBから取得する
+async function fetchCategoriesFromDB() {
+  const db = await getDBConnection();
+  await db
+    .query("SELECT * FROM `categories`", [])
+    .then(([rows]) => rows.forEach((row) => categories.push(row as Category)));
+
+  await db.release();
+}
+
+// CacheしたCategoryを返す
+async function findAllCategories() {
+  if (categories.length === 0) {
+    await fetchCategoriesFromDB();
+  }
+
+  return categories.slice();
+}
+
+// CacheしたCategoryをparent_idから探す
+async function findCategoryByParentId(parentId: number) {
+  if (categories.length === 0) {
+    await fetchCategoriesFromDB();
+  }
+  const cats = categories.filter(
+    (category: Category) => category.parent_id === parentId
+  );
+  return cats;
+}
+
+// CacheしたCategoryをidから探す
+async function findCategoryById(id: number): Promise<Category | null> {
+  if (categories.length === 0) {
+    await fetchCategoriesFromDB();
+  }
+
+  const category = categories.filter((cat) => cat.id === id);
+  return category.length === 0 ? null : category[0];
+}
+
 async function getIndex(_req: any, reply: FastifyReply<ServerResponse>) {
   const html = await fs.promises.readFile(
     path.join(__dirname, "public/index.html")
@@ -2238,6 +2281,7 @@ fastify.listen(8000, (err, _address) => {
   if (err) {
     throw new TraceError("Failed to listening", err);
   }
+  fetchCategoriesFromDB();
 });
 
 function replyError(
