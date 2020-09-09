@@ -433,7 +433,7 @@ async function getNewItems(
       await db.release();
       return;
     }
-    const category = await getCategoryByID(db, item.category_id);
+    const category = await getCategoryByID(item.category_id);
     if (category === null) {
       replyError(reply, "category not found", 404);
       await db.release();
@@ -480,22 +480,15 @@ async function getNewCategoryItems(
     return;
   }
 
-  const db = await getDBConnection();
-  const rootCategory = await getCategoryByID(db, rootCategoryId);
+  const rootCategory = await getCategoryByID(rootCategoryId);
   if (rootCategory === null || rootCategory.parent_id !== 0) {
     replyError(reply, "category not found");
-    await db.release();
     return;
   }
 
-  const categoryIDs: number[] = [];
-  const [rows] = await db.query(
-    "SELECT id FROM `categories` WHERE parent_id=?",
-    [rootCategory.id]
-  );
-  for (const row of rows) {
-    categoryIDs.push(row.id);
-  }
+  const categoryIDs: number[] = await findCategoryByParentId(
+    rootCategory.id
+  ).then((cats) => cats.map(({ id }) => id));
 
   const itemIDStr = req.query.item_id;
   let itemID = 0;
@@ -503,7 +496,6 @@ async function getNewCategoryItems(
     itemID = parseInt(itemIDStr, 10);
     if (isNaN(itemID) || itemID <= 0) {
       replyError(reply, "item_id param error", 400);
-      await db.release();
       return;
     }
   }
@@ -513,11 +505,11 @@ async function getNewCategoryItems(
     createdAt = parseInt(createdAtStr, 10);
     if (isNaN(createdAt) || createdAt <= 0) {
       replyError(reply, "created_at param error", 400);
-      await db.release();
       return;
     }
   }
 
+  const db = await getDBConnection();
   const items: Item[] = [];
   if (itemID > 0 && createdAt > 0) {
     const [
@@ -560,7 +552,7 @@ async function getNewCategoryItems(
       await db.release();
       return;
     }
-    const category = await getCategoryByID(db, item.category_id);
+    const category = await getCategoryByID(item.category_id);
     if (category === null) {
       replyError(reply, "category not found", 404);
       await db.release();
@@ -682,7 +674,7 @@ async function getTransactions(
 
   let itemDetails: ItemDetail[] = [];
   for (const item of items) {
-    const category = await getCategoryByID(db, item.category_id);
+    const category = await getCategoryByID(item.category_id);
     if (category === null) {
       replyError(reply, "category not found", 404);
       await db.rollback();
@@ -877,7 +869,7 @@ async function getUserItems(
 
   let itemSimples: ItemSimple[] = [];
   for (const item of items) {
-    const category = await getCategoryByID(db, item.category_id);
+    const category = await getCategoryByID(item.category_id);
     if (category === null) {
       replyError(reply, "category not found", 404);
       await db.release();
@@ -948,7 +940,7 @@ async function getItem(
     return;
   }
 
-  const category = await getCategoryByID(db, item.category_id);
+  const category = await getCategoryByID(item.category_id);
   if (category === null) {
     replyError(reply, "category not found", 404);
     await db.release();
@@ -1197,7 +1189,7 @@ async function postBuy(
     return;
   }
 
-  const category = await getCategoryByID(db, targetItem.category_id);
+  const category = await getCategoryByID(targetItem.category_id);
   if (category === null) {
     replyError(reply, "category id error", 500);
     await db.rollback();
@@ -1345,15 +1337,13 @@ async function postSell(
     replyError(reply, "all parameters are required", 400);
   }
 
-  const db = await getDBConnection();
-
-  const category = await getCategoryByID(db, categoryId);
+  const category = await getCategoryByID(categoryId);
   if (category === null || category.parent_id === 0) {
     replyError(reply, "Incorrect category ID", 400);
-    await db.release();
     return;
   }
 
+  const db = await getDBConnection();
   const user = await getLoginUser(req, db);
 
   if (user === null) {
@@ -2109,12 +2099,7 @@ async function getSettings(
   res.payment_service_url = await getPaymentServiceURL(db);
   res.csrf_token = csrfToken;
 
-  const categories: Category[] = [];
-  const [rows] = await db.query("SELECT * FROM `categories`", []);
-  for (const row of rows) {
-    categories.push(row as Category);
-  }
-  res.categories = categories;
+  res.categories = await findAllCategories();
 
   await db.release();
 
