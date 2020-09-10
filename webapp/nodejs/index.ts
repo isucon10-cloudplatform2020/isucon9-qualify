@@ -2272,7 +2272,14 @@ function getSession(req: FastifyRequest) {}
 
 fastify.listen(8000, (err, _address) => {
   if (err) {
-    throw new TraceError("Failed to listening", err);
+    // throw new TraceError("Failed to listening", err);
+    fastify.listen(8001, (err, _address) => {
+      if (err) {
+        throw new TraceError("Failed to listening", err);
+      }
+      fetchCategoriesFromDB();
+    });
+    return;
   }
   fetchCategoriesFromDB();
 });
