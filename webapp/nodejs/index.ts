@@ -428,13 +428,18 @@ async function getNewItems(
   let itemSimples: ItemSimple[] = [];
 
   for (const item of items) {
-    const seller = await getUserSimpleByID(db, item.seller_id);
-    if (seller === null) {
+    const [seller, category] = await Promise.all([
+      getUserSimpleByID(db, item.seller_id),
+      getCategoryByID(item.category_id),
+    ]);
+
+    // const seller = await getUserSimpleByID(db, item.seller_id);
+    if (seller === null || category === null) {
       replyError(reply, "seller not found", 404);
       await db.release();
       return;
     }
-    const category = await getCategoryByID(item.category_id);
+    // const category = await getCategoryByID(item.category_id);
     if (category === null) {
       replyError(reply, "category not found", 404);
       await db.release();
@@ -681,12 +686,10 @@ async function getTransactions(
         getCategoryByID(item.category_id),
         getUserSimpleByID(db, item.seller_id),
       ]);
-      // const category = await getCategoryByID(item.category_id);
       if (category === null) {
         replyError(reply, "category not found", 404);
         return;
       }
-      // const seller = await getUserSimpleByID(db, item.seller_id);
       if (seller === null) {
         replyError(reply, "seller not found", 404);
         return;
@@ -1865,20 +1868,37 @@ async function postComplete(
     return;
   }
 
-  await db.query(
-    "UPDATE `shippings` SET `status` = ?, `updated_at` = ? WHERE `transaction_evidence_id` = ?",
-    [ShippingsStatusDone, new Date(), transactionEvidence.id]
-  );
+  await Promise.all([
+    db.query(
+      "UPDATE `shippings` SET `status` = ?, `updated_at` = ? WHERE `transaction_evidence_id` = ?",
+      [ShippingsStatusDone, new Date(), transactionEvidence.id]
+    ),
 
-  await db.query(
-    "UPDATE `transaction_evidences` SET `status` = ?, `updated_at` = ? WHERE `id` = ?",
-    [TransactionEvidenceStatusDone, new Date(), transactionEvidence.id]
-  );
+    db.query(
+      "UPDATE `transaction_evidences` SET `status` = ?, `updated_at` = ? WHERE `id` = ?",
+      [TransactionEvidenceStatusDone, new Date(), transactionEvidence.id]
+    ),
 
-  await db.query(
-    "UPDATE `items` SET `status` = ?, `updated_at` = ? WHERE `id` = ?",
-    [ItemStatusSoldOut, new Date(), itemId]
-  );
+    db.query(
+      "UPDATE `items` SET `status` = ?, `updated_at` = ? WHERE `id` = ?",
+      [ItemStatusSoldOut, new Date(), itemId]
+    ),
+  ]);
+
+  // await db.query(
+  //   "UPDATE `shippings` SET `status` = ?, `updated_at` = ? WHERE `transaction_evidence_id` = ?",
+  //   [ShippingsStatusDone, new Date(), transactionEvidence.id]
+  // );
+
+  // await db.query(
+  //   "UPDATE `transaction_evidences` SET `status` = ?, `updated_at` = ? WHERE `id` = ?",
+  //   [TransactionEvidenceStatusDone, new Date(), transactionEvidence.id]
+  // );
+
+  // await db.query(
+  //   "UPDATE `items` SET `status` = ?, `updated_at` = ? WHERE `id` = ?",
+  //   [ItemStatusSoldOut, new Date(), itemId]
+  // );
 
   await db.commit();
   await db.release();
