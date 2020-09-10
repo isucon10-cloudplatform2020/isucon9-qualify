@@ -611,6 +611,7 @@ async function getTransactions(
   }
 
   const query = req.query;
+  // console.log(query);
   let itemId = 0;
   if (query["item_id"] !== undefined) {
     itemId = parseInt(query["item_id"], 10);
@@ -898,6 +899,7 @@ async function getItem(
   reply: FastifyReply<ServerResponse>
 ) {
   const itemIdStr = req.params.item_id;
+  // console.time(`getItem:${itemIdStr}`);
   const itemId = parseInt(itemIdStr, 10);
   if (itemId === undefined || isNaN(itemId)) {
     replyError(reply, "incorrect item id", 400);
@@ -1012,6 +1014,7 @@ async function getItem(
   await db.release();
 
   reply.code(200).type("application/json").send(itemDetail);
+  // console.timeEnd(`getItem:${itemIdStr}`);
 }
 
 async function postItemEdit(
@@ -2114,6 +2117,7 @@ async function postLogin(
   req: FastifyRequest,
   reply: FastifyReply<ServerResponse>
 ) {
+  // console.log("Loggingin!");
   const rr: ReqLogin = req.body;
 
   const accountName = rr.account_name;
@@ -2278,6 +2282,7 @@ function replyError(
   message: string,
   status = 500
 ) {
+  // console.log("Error!", message);
   reply.code(status).type("application/json").send({ error: message });
 }
 
