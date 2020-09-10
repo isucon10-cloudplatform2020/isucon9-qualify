@@ -552,13 +552,15 @@ async function getNewCategoryItems(
   let itemSimples: ItemSimple[] = [];
 
   for (const item of items) {
-    const seller = await getUserSimpleByID(db, item.seller_id);
+    const [seller, category] = await Promise.all([
+      getUserSimpleByID(db, item.seller_id),
+      getCategoryByID(item.category_id),
+    ]);
     if (seller === null) {
       replyError(reply, "seller not found", 404);
       await db.release();
       return;
     }
-    const category = await getCategoryByID(item.category_id);
     if (category === null) {
       replyError(reply, "category not found", 404);
       await db.release();
