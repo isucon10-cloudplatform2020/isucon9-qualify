@@ -592,7 +592,8 @@ async function getNewCategoryItems(
     has_next: hasNext,
   };
 
-  await db.release();
+  // await db.release();
+  db.release();
 
   reply.code(200).type("application/json").send(res);
 }
