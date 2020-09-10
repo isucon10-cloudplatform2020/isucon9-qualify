@@ -2301,13 +2301,12 @@ async function getUserSimpleByID(
     userID,
   ]);
   for (const row of rows) {
-    const user = row as User;
-    const userSimple: UserSimple = {
-      id: user.id,
-      account_name: user.account_name,
-      num_sell_items: user.num_sell_items,
+    const u = row as User;
+    return {
+      id: u.id,
+      account_name: u.account_name,
+      num_sell_items: u.num_sell_items,
     };
-    return userSimple;
   }
   return null;
 }
