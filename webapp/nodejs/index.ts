@@ -978,37 +978,26 @@ async function getItem(
     itemDetail.buyer = buyer;
 
     const [
-      rows,
+      [
+        { id, status, shipping_status } = {
+          id: null,
+          status: null,
+          shipping_status: null,
+        },
+      ],
     ] = await db.query(
-      "SELECT * FROM `transaction_evidences` WHERE `item_id` = ?",
+      "SELECT transaction_evidences.id as id, transaction_evidences.status as status, shippings.status as shipping_status FROM transaction_evidences JOIN shippings ON transaction_evidences.id = shippings.transaction_evidence_id WHERE transaction_evidences.item_id = ?",
       [item.id]
     );
-    let transactionEvidence: TransactionEvidence | null = null;
-    for (const row of rows) {
-      transactionEvidence = row as TransactionEvidence;
-    }
 
-    if (transactionEvidence !== null) {
-      const [
-        rows,
-      ] = await db.query(
-        "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?",
-        [transactionEvidence.id]
-      );
-      let shipping: Shipping | null = null;
-      for (const row of rows) {
-        shipping = row as Shipping;
-      }
-
-      if (shipping === null) {
+    if (id !== null && status !== null) {
+      if (shipping_status === null) {
         replyError(reply, "shipping not found", 404);
-        await db.release();
         return;
       }
-
-      itemDetail.transaction_evidence_id = transactionEvidence.id;
-      itemDetail.transaction_evidence_status = transactionEvidence.status;
-      itemDetail.shipping_status = shipping.status;
+      itemDetail.shipping_status = shipping_status;
+      itemDetail.transaction_evidence_id = id;
+      itemDetail.transaction_evidence_status = status;
     }
   }
 
