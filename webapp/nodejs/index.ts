@@ -674,105 +674,102 @@ async function getTransactions(
   }
 
   let itemDetails: ItemDetail[] = [];
-  for (const item of items) {
-    const category = await getCategoryByID(item.category_id);
-    if (category === null) {
-      replyError(reply, "category not found", 404);
-      await db.rollback();
-      await db.release();
-      return;
-    }
 
-    const seller = await getUserSimpleByID(db, item.seller_id);
-    if (seller === null) {
-      replyError(reply, "seller not found", 404);
-      await db.rollback();
-      await db.release();
-      return;
-    }
-
-    const itemDetail: ItemDetail = {
-      id: item.id,
-      seller_id: item.seller_id,
-      seller: seller,
-      // buyer_id
-      // buyer
-      status: item.status,
-      name: item.name,
-      price: item.price,
-      description: item.description,
-      image_url: getImageURL(item.image_name),
-      category_id: item.category_id,
-      category: category,
-      // transaction_evidence_id
-      // transaction_evidence_status
-      // shipping_status
-      created_at: item.created_at.getTime(),
-    };
-
-    if (item.buyer_id !== undefined && item.buyer_id !== 0) {
-      const buyer = await getUserSimpleByID(db, item.buyer_id);
-      if (buyer === null) {
-        replyError(reply, "buyer not found", 404);
-        await db.rollback();
-        await db.release();
+  await Promise.all(
+    items.map(async (item) => {
+      const [category, seller] = await Promise.all([
+        getCategoryByID(item.category_id),
+        getUserSimpleByID(db, item.seller_id),
+      ]);
+      // const category = await getCategoryByID(item.category_id);
+      if (category === null) {
+        replyError(reply, "category not found", 404);
         return;
       }
-      itemDetail.buyer_id = item.buyer_id;
-      itemDetail.buyer = buyer;
-    }
-
-    const [
-      rows,
-    ] = await db.query(
-      "SELECT * FROM `transaction_evidences` WHERE `item_id` = ?",
-      [item.id]
-    );
-    let transactionEvidence: TransactionEvidence | null = null;
-    for (const row of rows) {
-      transactionEvidence = row as TransactionEvidence;
-    }
-
-    if (transactionEvidence !== null) {
+      // const seller = await getUserSimpleByID(db, item.seller_id);
+      if (seller === null) {
+        replyError(reply, "seller not found", 404);
+        return;
+      }
+      const itemDetail: ItemDetail = {
+        id: item.id,
+        seller_id: item.seller_id,
+        seller: seller,
+        // buyer_id
+        // buyer
+        status: item.status,
+        name: item.name,
+        price: item.price,
+        description: item.description,
+        image_url: getImageURL(item.image_name),
+        category_id: item.category_id,
+        category: category,
+        // transaction_evidence_id
+        // transaction_evidence_status
+        // shipping_status
+        created_at: item.created_at.getTime(),
+      };
+      if (item.buyer_id !== undefined && item.buyer_id !== 0) {
+        const buyer = await getUserSimpleByID(db, item.buyer_id);
+        if (buyer === null) {
+          replyError(reply, "buyer not found", 404);
+          return;
+        }
+        itemDetail.buyer_id = item.buyer_id;
+        itemDetail.buyer = buyer;
+      }
       const [
         rows,
       ] = await db.query(
-        "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?",
-        [transactionEvidence.id]
+        "SELECT * FROM `transaction_evidences` WHERE `item_id` = ?",
+        [item.id]
       );
-
-      let shipping: Shipping | null = null;
+      let transactionEvidence: TransactionEvidence | null = null;
       for (const row of rows) {
-        shipping = row as Shipping;
+        transactionEvidence = row as TransactionEvidence;
       }
-
-      if (shipping === null) {
-        replyError(reply, "shipping not found", 404);
-        await db.rollback();
-        await db.release();
-        return;
+      if (transactionEvidence !== null) {
+        const [
+          rows,
+        ] = await db.query(
+          "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?",
+          [transactionEvidence.id]
+        );
+        let shipping: Shipping | null = null;
+        for (const row of rows) {
+          shipping = row as Shipping;
+        }
+        if (shipping === null) {
+          replyError(reply, "shipping not found", 404);
+          return;
+        }
+        try {
+          const res = await shipmentStatus(await getShipmentServiceURL(db), {
+            reserve_id: shipping.reserve_id,
+          });
+          itemDetail.shipping_status = res.status;
+        } catch (error) {
+          replyError(reply, "failed to request to shipment service");
+          return;
+        }
+        itemDetail.transaction_evidence_id = transactionEvidence.id;
+        itemDetail.transaction_evidence_status = transactionEvidence.status;
       }
+      itemDetails.push(itemDetail);
+    })
+  );
 
-      try {
-        const res = await shipmentStatus(await getShipmentServiceURL(db), {
-          reserve_id: shipping.reserve_id,
-        });
-        itemDetail.shipping_status = res.status;
-      } catch (error) {
-        replyError(reply, "failed to request to shipment service");
-        await db.rollback();
-        await db.release();
-        return;
-      }
-
-      itemDetail.transaction_evidence_id = transactionEvidence.id;
-      itemDetail.transaction_evidence_status = transactionEvidence.status;
-    }
-
-    itemDetails.push(itemDetail);
+  if (reply.sent) {
+    await db.rollback();
+    await db.release();
+    return;
   }
 
   await db.commit();
+
+  itemDetails = itemDetails.sort(
+    (a: ItemDetail, b: ItemDetail) => b.created_at - a.created_at
+  );
 
   let hasNext = false;
   if (itemDetails.length > TransactionsPerPage) {
@@ -782,10 +779,10 @@ async function getTransactions(
 
   await db.release();
 
-  reply
-    .code(200)
-    .type("application/json;charset=utf-8")
-    .send({ has_next: hasNext, items: itemDetails });
+  reply.code(200).type("application/json;charset=utf-8").send({
+    has_next: hasNext,
+    items: itemDetails,
+  });
 }
 
 async function getUserItems(
