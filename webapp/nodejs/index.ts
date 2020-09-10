@@ -237,7 +237,7 @@ fastify.register(fastifyMysql, {
   user: process.env.MYSQL_USER || "isucari",
   password: process.env.MYSQL_PASS || "isucari",
   database: process.env.MYSQL_DBNAME || "isucari",
-  pool: 100,
+  pool: 1000,
 
   promise: true,
 });
