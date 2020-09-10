@@ -1204,21 +1204,22 @@ async function postBuy(
   );
 
   try {
-    const scr = await shipmentCreate(await getShipmentServiceURL(db), {
-      to_address: buyer.address,
-      to_name: buyer.account_name,
-      from_address: seller.address,
-      from_name: seller.account_name,
-    });
-
-    try {
-      const pstr = await paymentToken(await getPaymentServiceURL(db), {
+    const [scr, pstr] = await Promise.all([
+      shipmentCreate(await getShipmentServiceURL(db), {
+        to_address: buyer.address,
+        to_name: buyer.account_name,
+        from_address: seller.address,
+        from_name: seller.account_name,
+      }),
+      paymentToken(await getPaymentServiceURL(db), {
         shop_id: PaymentServiceIsucariShopID.toString(),
         token: req.body.token,
         api_key: PaymentServiceIsucariAPIKey,
         price: targetItem.price,
-      });
+      }),
+    ]);
 
+    try {
       if (pstr.status === "invalid") {
         replyError(reply, "カード情報に誤りがあります", 400);
         await db.rollback();
